@@ -40,7 +40,7 @@ func (o BasicRPCServerOpts) RPCHostAndPort() string {
 type RPCClient struct {
 	BaseName     string
 	RPCVersion   string
-	Opts         RPCServerOpts
+	Opts         []RPCServerOpts
 	UseTLS       bool
 	VersionError error
 	VersionOk    bool
@@ -51,14 +51,22 @@ func NewRPCClient(hostAndPort, baseName, rpcVersion string, useTLS bool) *RPCCli
 }
 
 func NewRPCClientWithConfig(config RPCServerOpts, baseName, rpcVersion string, useTLS bool) *RPCClient {
-	return &RPCClient{baseName, rpcVersion, config, useTLS, nil, false}
+	configs := []RPCServerOpts{config}
+	return &RPCClient{baseName, rpcVersion, configs, useTLS, nil, false}
+}
+
+/* TODO(edanaher): These multi-calls should be the default, but since these are used everywhere, I'm leaving
+* the old ones in place for now. */
+
+func NewMultiRPCClientWithConfig(configs []RPCServerOpts, baseName, rpcVersion string, useTLS bool) *RPCClient {
+	return &RPCClient{baseName, rpcVersion, configs, useTLS, nil, false}
 }
 
 func (r *RPCClient) newClient() (*rpc.Client, error) {
 	if r.UseTLS {
 		return r.newTLSClient()
 	}
-	return rpc.DialHTTP("tcp", r.Opts.RPCHostAndPort())
+	return rpc.DialHTTP("tcp", r.Opts[0].RPCHostAndPort())
 }
 
 func (r *RPCClient) tlsConfig() (*tls.Config, error) {
@@ -73,7 +81,7 @@ func (r *RPCClient) newTLSClient() (*rpc.Client, error) {
 	if err != nil {
 		panic(err)
 	}
-	conn, err := tls.Dial("tcp", r.Opts.RPCHostAndPort(), config)
+	conn, err := tls.Dial("tcp", r.Opts[0].RPCHostAndPort(), config)
 	if err != nil {
 		panic(err)
 	}
@@ -160,5 +168,5 @@ func (r *RPCClient) CallWithTimeout(name string, arg interface{}, reply interfac
 	if err := r.checkVersionWithTimeout(timeout); err != nil {
 		return err
 	}
-	return r.doRequestWithTimeout(name, arg, reply, timeout)	
+	return r.doRequestWithTimeout(name, arg, reply, timeout)
 }
